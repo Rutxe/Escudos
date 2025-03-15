@@ -107,8 +107,12 @@
                 timeParts[2]
             );
             if (attackTime < now) {
-                alert('La hora ya ha pasado hoy');
-                return;
+                // Si la hora ya ha pasado hoy, preguntar si se quiere programar para mañana
+                const confirmNextDay = confirm('La hora seleccionada ya ha pasado hoy. ¿Quieres programar el ataque para mañana?');
+                if (!confirmNextDay) {
+                    return; // Cancelar si el usuario no confirma
+                }
+                attackTime.setDate(attackTime.getDate() + 1); // Programar para el día siguiente
             }
             attacks.push({ name, time: attackTime, url });
             attacks.sort((a, b) => a.time - b.time);
@@ -125,8 +129,9 @@
                 const item = document.createElement('div');
                 item.className = 'attack-item';
                 const timeStr = attack.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const dateStr = attack.time.toLocaleDateString('es-ES');
                 item.innerHTML = `
-                    <span><strong>${timeStr}</strong> - ${attack.name}</span>
+                    <span><strong>${dateStr} ${timeStr}</strong> - ${attack.name}</span>
                     <button onclick="deleteAttack(${index})">Eliminar</button>
                 `;
                 list.appendChild(item);
