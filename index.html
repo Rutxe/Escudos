@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Planificador de Ataques</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; }
+        .entry { margin: 10px 0; }
+        .entry input { padding: 5px; width: 150px; }
+        #attackList { margin-top: 20px; }
+        .attack-item { padding: 8px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+        .knight-list { border: 1px solid #ddd; max-height: 300px; overflow-y: auto; padding: 10px; margin-top: 20px; }
+        .knight-item { cursor: pointer; padding: 5px; }
+        .knight-item:hover { background-color: #f0f0f0; }
+        .selected { background-color: #d1e7dd; }
+        .manual-mode { margin-top: 20px; padding: 10px; border-top: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>Planificador de Ataques</h1>
+    <!-- Modo automático -->
+    <div class="entry">
+        <input type="text" id="name" placeholder="Nombre" readonly>
+        <input type="text" id="timeAuto" placeholder="hh.mm.ss">
+        <button onclick="addAttack('auto')">Atacar</button>
+        <button onclick="autoSchedule()">Auto</button>
+    </div>
+    <h2>Lista de Caballeros</h2>
+    <div class="knight-list" id="knightList"></div>
+    <!-- Modo manual -->
+    <div class="manual-mode">
+        <h3>Modo Manual</h3>
+        <input type="text" id="urlManual" placeholder="URL completa">
+        <input type="text" id="timeManual" placeholder="hh.mm.ss">
+        <button onclick="addAttack('manual')">Atacar Manual</button>
+    </div>
+    <h2>Cola de Ataques</h2>
+    <div id="attackList"></div>
+    <script>
+        // URL Mappings (solo los últimos 9 caballeros)
+        const urlMappings = {
+            "logan": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=844639",
+            "kanon": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=2599809",
+            "epyon": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=1584838",
+            "firestar": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=16329",
+            "isildur": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=2250085",
+            "leandark": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=1238800",
+            "falco": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=496471",
+            "nayyan": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=497480",
+            "zorr taurus": "https://s51-es.battleknight.gameforge.com/duel/duel/?enemyID=511983"
+        };
+        let attacks = [];
+
+        // Cargar lista de caballeros
+        function loadKnightList() {
+            const container = document.getElementById('knightList');
+            container.innerHTML = '';
+            Object.keys(urlMappings).forEach(name => {
+                const div = document.createElement('div');
+                div.className = 'knight-item';
+                div.textContent = name;
+                div.onclick = () => {
+                    document.getElementById('name').value = name;
+                    document.querySelectorAll('.knight-item').forEach(i => i.classList.remove('selected'));
+                    div.classList.add('selected');
+                };
+                container.appendChild(div);
+            });
+        }
+
+        // Función para añadir ataques
+        function addAttack(mode) {
+            const timeInput = mode === 'manual' ? document.getElementById('timeManual') : document.getElementById('timeAuto');
+            const timeStr = timeInput.value.trim();
+            // Validar hora
+            const timeParts = timeStr.split('.').map(Number);
+            if (timeParts.length !== 3 || timeParts.some(n => isNaN(n) || n < 0 || n > 59)) {
+                alert('Formato de hora inválido. Usa hh.mm.ss (ej: 14.30.00)');
+                return;
+            }
+            // Obtener URL
+            let url;
+            let name;
+            if (mode === 'manual') {
+                url = document.getElementById('urlManual').value.trim();
+                name = 'URL Manual';
+                if (!url.startsWith('http')) {
+                    alert('URL inválida. Debe empezar con http/https');
+                    return;
+                }
+            } else {
+                name = document.getElementById('name').value.trim();
+                if (!name || !urlMappings[name]) {
+                    alert('Selecciona un caballero válido');
+                    return;
+                }
+                url = urlMappings[name];
+            }
+            // Crear ataque
+            const now = new Date();
+            const attackTime = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate(),
+                timeParts[0],
+                timeParts[1],
+                timeParts[2]
+            );
+            if (attackTime < now) {
+                alert('La hora ya ha pasado hoy');
+                return;
+            }
+            attacks.push({ name, time: attackTime, url });
+            attacks.sort((a, b) => a.time - b.time);
+            updateAttackList();
+            timeInput.value = '';
+            if (mode === 'manual') document.getElementById('urlManual').value = '';
+        }
+
+        // Actualizar lista de ataques
+        function updateAttackList() {
+            const list = document.getElementById('attackList');
+            list.innerHTML = '';
+            attacks.forEach((attack, index) => {
+                const item = document.createElement('div');
+                item.className = 'attack-item';
+                const timeStr = attack.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                item.innerHTML = `
+                    <span><strong>${timeStr}</strong> - ${attack.name}</span>
+                    <button onclick="deleteAttack(${index})">Eliminar</button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // Eliminar ataque
+        function deleteAttack(index) {
+            attacks.splice(index, 1);
+            updateAttackList();
+        }
+
+        // Programar ataque automático
+        function autoSchedule() {
+            const now = new Date();
+            let attackTime;
+
+            if (attacks.length === 0) {
+                // Si no hay ataques programados, programar para la siguiente hora en el minuto 0 y segundo 1
+                attackTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 1);
+                if (now.getMinutes() === 0 && now.getSeconds() === 1) {
+                    attackTime.setHours(attackTime.getHours() + 1); // Si justo es la hora exacta, sumar otra hora
+                }
+            } else {
+                // Si ya hay ataques programados, encontrar el último ataque y añadir 1 hora y 1 segundo
+                const lastAttack = attacks[attacks.length - 1].time;
+                attackTime = new Date(lastAttack.getTime() + 3601 * 1000); // 1 hora y 1 segundo en milisegundos
+            }
+
+            // Validar si el nombre está seleccionado
+            const name = document.getElementById('name').value.trim();
+            if (!name || !urlMappings[name]) {
+                alert('Selecciona un caballero válido');
+                return;
+            }
+
+            // Añadir el ataque a la lista
+            attacks.push({ name, time: attackTime, url: urlMappings[name] });
+            attacks.sort((a, b) => a.time - b.time);
+            updateAttackList();
+
+            // Limpiar el campo de nombre seleccionado
+            document.getElementById('name').value = '';
+            document.querySelectorAll('.knight-item').forEach(i => i.classList.remove('selected'));
+        }
+
+        // Verificar ataques cada segundo
+        setInterval(() => {
+            const now = new Date();
+            for (let i = attacks.length - 1; i >= 0; i--) {
+                if (attacks[i].time <= now) {
+                    window.open(attacks[i].url, '_blank');
+                    attacks.splice(i, 1);
+                    updateAttackList();
+                }
+            }
+        }, 1000);
+
+        // Inicializar
+        loadKnightList();
+    </script>
+</body>
+</html>
